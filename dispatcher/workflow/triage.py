@@ -63,11 +63,15 @@ logger = logging.getLogger(__name__)
 
 
 class Mode(StrEnum):
+    """Режим разбора. Фиксированный маршрут следует порядку источников, агент выбирает шаги."""
+
     FIXED = "fixed"
     AGENT = "agent"
 
 
 class Step(BaseModel):
+    """Запись о выполненном шаге и о том, кто его выбрал."""
+
     action: Action
     label: str
     selected_by: Literal["route", "model", "rule", "operator"]
@@ -194,6 +198,7 @@ class ApprovalTimeoutComparison(BaseModel):
     late: Checkpoint
 
 
+# Порядок задан для фиксированного маршрута. В агентном режиме цикл задаёт бюджет шагов.
 FIXED_ROUTE = (Action.STATUS, Action.DEPLOYMENT, Action.INDIVIDUAL, Action.INCIDENT, Action.FINISH)
 
 
@@ -243,6 +248,11 @@ async def run_triage(
     model_problem: ModelUnavailable | None = None,
     rules_only: bool = False,
 ) -> Run:
+    """Разбирает обращение и формирует рекомендацию по полученным сведениям.
+
+    Фиксированный маршрут, агент и рабочий режим по регламенту используют общие
+    источники и правила рекомендаций. Стратегия определяет, какой источник читать дальше.
+    """
     trace = current.get()
     run_id = trace.run_id if trace is not None else uuid4().hex
     logger.info(
@@ -298,6 +308,7 @@ async def run_triage(
                     reason="Собраны доказательства, достаточные для рекомендации.",
                 )
             elif rules_only:
+                # Рабочий разбор по регламенту выбирает ветку по измеренному состоянию очереди.
                 selected_by = "rule"
                 actions = {
                     "incident": (Action.DEPLOYMENT, Action.INCIDENT),

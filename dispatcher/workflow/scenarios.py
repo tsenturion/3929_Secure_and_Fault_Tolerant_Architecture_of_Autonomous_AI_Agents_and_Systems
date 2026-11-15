@@ -44,6 +44,8 @@ ACTION_LABELS = {
 
 
 class ScenarioView(BaseModel):
+    """Карточка обращения для кабинета с описанием симптома и целью разбора."""
+
     id: str
     title: str
     received_at: str
@@ -96,6 +98,8 @@ class Monitoring(BaseModel):
 
 @dataclass(frozen=True)
 class Scenario:
+    """Входные данные разбора для учебного или рабочего обращения."""
+
     view: ScenarioView
     monitoring: Monitoring
     report_count: int
@@ -131,6 +135,7 @@ async def read_observation(scenario: Scenario, action: Action, fault: Fault | No
 STALE_MONITORING = Monitoring(queue_size=126, oldest_minutes=2, checkout_healthy=True)
 
 
+# В штатном сравнении обе стратегии получают одну учебную карточку и одинаковый снимок очереди.
 SCENARIOS = {
     "REQ-1842": Scenario(
         ScenarioView(

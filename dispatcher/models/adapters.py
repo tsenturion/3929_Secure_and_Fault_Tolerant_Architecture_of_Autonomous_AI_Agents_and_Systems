@@ -78,6 +78,8 @@ def validate_decision(value: object) -> Decision:
 
 
 class Model(Protocol):
+    """Контракт адаптера. Модель выбирает действие из предложенного набора и объясняет выбор."""
+
     def decide(self, context: str, available: dict[Action, str]) -> Decision: ...
 
 

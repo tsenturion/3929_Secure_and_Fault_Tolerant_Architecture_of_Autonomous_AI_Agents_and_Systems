@@ -1,0 +1,86 @@
+{
+  "realm": "dispatcher-workloads",
+  "enabled": true,
+  "sslRequired": "all",
+  "defaultSignatureAlgorithm": "RS256",
+  "accessTokenLifespan": 20,
+  "clientScopes": [
+    {
+      "name": "executor.access",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" },
+      "protocolMappers": [
+        {
+          "name": "incident-executor",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "incident-executor",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "runbooks.read",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" },
+      "protocolMappers": [
+        {
+          "name": "incident-executor",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "incident-executor",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "incidents.write",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "diagnostic-agent",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${IAM_EXECUTOR_CLIENT_SECRET}",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["executor.access", "incidents.write"],
+      "optionalClientScopes": [],
+      "attributes": {
+        "tls.client.certificate.bound.access.tokens": "true",
+        "client_credentials.use_refresh_token": "false"
+      }
+    },
+    {
+      "clientId": "runbook-agent",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${IAM_RUNBOOK_CLIENT_SECRET}",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["runbooks.read"],
+      "optionalClientScopes": [],
+      "attributes": {
+        "tls.client.certificate.bound.access.tokens": "true",
+        "client_credentials.use_refresh_token": "false"
+      }
+    }
+  ]
+}

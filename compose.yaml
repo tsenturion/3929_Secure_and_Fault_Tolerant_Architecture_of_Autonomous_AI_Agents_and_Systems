@@ -1,0 +1,186 @@
+name: incident-dispatcher
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=64m
+  logging:
+    driver: local
+    options:
+      max-size: 5m
+      max-file: "3"
+
+x-backend: &backend
+  build:
+    context: .
+    target: backend
+  image: incident-dispatcher-backend:local
+  user: "10001:10001"
+
+services:
+  frontend:
+    <<: *hardening
+    build:
+      context: .
+      target: frontend
+    init: true
+    ports:
+      - "127.0.0.1:${UI_PORT:-8080}:8080"
+    networks: [ingress, edge]
+    depends_on:
+      agent:
+        condition: service_healthy
+
+  agent:
+    <<: [*hardening, *backend]
+    init: true
+    command: ["dispatcher.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+    environment:
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-openai}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      GIGACHAT_MODEL: ${GIGACHAT_MODEL:-GigaChat-2}
+      TRIAGE_MAX_STEPS: ${TRIAGE_MAX_STEPS:-5}
+      TRIAGE_TIMEOUT_SECONDS: ${TRIAGE_TIMEOUT_SECONDS:-45}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:?Сначала запустите scripts/setup-local-access.ps1}
+      EXECUTOR_URL: http://executor:8001
+      MODEL_GATEWAY_URL: http://model-gateway:8002
+    volumes:
+      - agent-logs:/app/logs
+    networks: [edge, execution, models]
+    depends_on:
+      executor:
+        condition: service_healthy
+      model-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=5.5).close()"]
+      interval: 5s
+      timeout: 6s
+      retries: 10
+
+  executor:
+    <<: [*hardening, *backend]
+    init: true
+    command: ["dispatcher.executor:app", "--host", "0.0.0.0", "--port", "8001", "--no-access-log"]
+    environment:
+      SERVICE_TOKEN: ${SERVICE_TOKEN:?Сначала запустите scripts/setup-local-access.ps1}
+      DUTY_OPERATOR_TOKEN: ${DUTY_OPERATOR_TOKEN:?Сначала запустите scripts/setup-local-access.ps1}
+      OBSERVER_TOKEN: ${OBSERVER_TOKEN:?Сначала запустите scripts/setup-local-access.ps1}
+      APPROVAL_TIMEOUT_SECONDS: ${APPROVAL_TIMEOUT_SECONDS:-600}
+      RUN_DB_PATH: /app/state/dispatcher.sqlite3
+      AUDIT_CHECKPOINT_DB: /app/checkpoints/audit.sqlite3
+      MONITORING_URL: http://monitoring:8004
+      MONITORING_TOKEN: ${MONITORING_TOKEN:?Сначала запустите scripts/setup-local-access.ps1}
+      RUNBOOK_CATALOG_URL: http://runbook-catalog:8005
+      RUNBOOK_CATALOG_TOKEN: ${RUNBOOK_CATALOG_TOKEN:?Сначала запустите scripts/setup-local-access.ps1}
+    volumes:
+      - executor-state:/app/state
+      - executor-logs:/app/logs
+      - audit-checkpoints:/app/checkpoints:ro
+    networks: [execution, monitoring, catalog]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/ready', timeout=4.5).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  audit-witness:
+    <<: [*hardening, *backend]
+    init: true
+    entrypoint: ["/app/.venv/bin/python", "-m", "dispatcher.observability.tamper_evident_audit.audit_witness"]
+    environment:
+      AUDIT_SOURCE_DB: /app/source/dispatcher.sqlite3
+      AUDIT_CHECKPOINT_DB: /app/checkpoints/audit.sqlite3
+    volumes:
+      - executor-state:/app/source:ro
+      - audit-checkpoints:/app/checkpoints
+      - audit-logs:/app/logs
+    network_mode: none
+    depends_on:
+      executor:
+        condition: service_healthy
+
+  model-gateway:
+    <<: [*hardening, *backend]
+    init: true
+    command: ["dispatcher.models.gateway:app", "--host", "0.0.0.0", "--port", "8002", "--no-access-log"]
+    environment:
+      SERVICE_TOKEN: ${SERVICE_TOKEN:?Сначала запустите scripts/setup-local-access.ps1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GIGACHAT_CREDENTIALS: ${GIGACHAT_CREDENTIALS:-${GIGACHAT_AUTH_KEY:-}}
+      GIGACHAT_SCOPE: ${GIGACHAT_SCOPE:-GIGACHAT_API_PERS}
+      GIGACHAT_CA_BUNDLE_FILE: /run/certs/gigachat-ca.pem
+    volumes:
+      - gateway-logs:/app/logs
+      # Публичный CA доступен только шлюзу. Клиентские ключи mTLS создаются локально.
+      - type: bind
+        source: ./deploy/model_gateway/certs/russian-trusted-root-ca.pem
+        target: /run/certs/gigachat-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    networks: [models, egress]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  monitoring:
+    <<: [*hardening, *backend]
+    init: true
+    command: ["dispatcher.resilience.retry_and_circuit_breaker.monitoring_service:app", "--host", "0.0.0.0", "--port", "8004", "--no-access-log"]
+    environment:
+      MONITORING_TOKEN: ${MONITORING_TOKEN:?Сначала запустите scripts/setup-local-access.ps1}
+    volumes:
+      - monitoring-logs:/app/logs
+    networks: [monitoring]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/health', timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  runbook-catalog:
+    <<: [*hardening, *backend]
+    init: true
+    command: ["dispatcher.security.source_access.runbook_catalog_service:app", "--host", "0.0.0.0", "--port", "8005", "--no-access-log"]
+    environment:
+      RUNBOOK_CATALOG_TOKEN: ${RUNBOOK_CATALOG_TOKEN:?Сначала запустите scripts/setup-local-access.ps1}
+    volumes:
+      - runbook-catalog-logs:/app/logs
+    networks: [catalog]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8005/health/ready', timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+networks:
+  ingress:
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+  edge:
+    internal: true
+  execution:
+    internal: true
+  models:
+    internal: true
+  monitoring:
+    internal: true
+  catalog:
+    internal: true
+  egress: {}
+
+volumes:
+  agent-logs:
+  executor-state:
+  executor-logs:
+  audit-checkpoints:
+  audit-logs:
+  gateway-logs:
+  monitoring-logs:
+  runbook-catalog-logs:

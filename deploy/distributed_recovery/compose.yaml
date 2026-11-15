@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dispatcher
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Сначала запустите scripts/start-resilience.ps1}
+      DISPATCHER_DB_PASSWORD: ${DISPATCHER_DB_PASSWORD:?Сначала запустите scripts/start-resilience.ps1}
+      AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD:?Сначала запустите scripts/start-resilience.ps1}
+    networks: [database]
+    volumes:
+      - postgres-state:/var/lib/postgresql
+      - ./deploy/distributed_recovery/config/init-roles.sh:/docker-entrypoint-initdb.d/01-roles.sh:ro
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, postgres, -d, dispatcher]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+    logging:
+      driver: local
+      options:
+        max-size: 5m
+        max-file: "3"
+
+  executor:
+    restart: unless-stopped
+    environment:
+      RUN_DB_DSN: postgresql://dispatcher_writer@postgres/dispatcher
+      RUN_DB_PASSWORD: ${DISPATCHER_DB_PASSWORD:?Сначала запустите scripts/start-resilience.ps1}
+      RUN_DB_AUDIT_ROLE: dispatcher_audit
+    volumes:
+      - postgres-audit-checkpoints:/app/checkpoints:ro
+    networks: [database]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  audit-witness:
+    network_mode: !reset null
+    networks: [database]
+    volumes: !override
+      - postgres-audit-checkpoints:/app/checkpoints
+      - audit-logs:/app/logs
+    environment:
+      AUDIT_SOURCE_DSN: postgresql://dispatcher_audit@postgres/dispatcher
+      AUDIT_SOURCE_PASSWORD: ${AUDIT_DB_PASSWORD:?Сначала запустите scripts/start-resilience.ps1}
+
+networks:
+  database:
+    internal: true
+
+volumes:
+  postgres-state:
+  postgres-audit-checkpoints:

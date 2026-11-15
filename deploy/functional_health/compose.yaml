@@ -1,0 +1,11 @@
+services:
+  runbook-catalog:
+    environment:
+      RUNBOOK_INDEX_PATH: /app/index/runbooks.json
+    volumes:
+      - type: bind
+        source: ./deploy/functional_health/config/runbook-index-incomplete.json
+        target: /app/index/runbooks.json
+        read_only: true
+        bind:
+          create_host_path: false

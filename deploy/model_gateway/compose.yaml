@@ -1,0 +1,11 @@
+services:
+  model-gateway:
+    environment:
+      GIGACHAT_CA_BUNDLE_FILE: /run/certs/gigachat-ca.pem
+    volumes:
+      - type: bind
+        source: ${GIGACHAT_CA_BUNDLE_FILE:-./deploy/model_gateway/certs/russian-trusted-root-ca.pem}
+        target: /run/certs/gigachat-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false

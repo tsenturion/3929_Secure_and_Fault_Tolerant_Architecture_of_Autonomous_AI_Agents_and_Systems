@@ -1,0 +1,13 @@
+.work-case-form { gap: 12px; }
+.work-case-form input[type="datetime-local"], .work-case-form input[type="number"] {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #a3b4bf;
+  border-radius: 6px;
+  font: inherit;
+}
+.work-case-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 12px; }
+.work-case-fields select { width: 100%; }
+.work-case-details { overflow-wrap: anywhere; }
+.work-case-support { margin-top: 12px; }

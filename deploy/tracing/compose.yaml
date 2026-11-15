@@ -1,0 +1,49 @@
+services:
+  agent:
+    environment:
+      LOKI_URL: http://loki:3100
+    networks: [observability]
+
+  loki:
+    image: grafana/loki:3.7.10
+    command: ["-config.file=/etc/loki/dispatcher.yaml"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    volumes:
+      - ./deploy/tracing/config/loki.yaml:/etc/loki/dispatcher.yaml:ro
+      - loki-state:/loki
+    networks: [observability]
+
+  log-collector:
+    image: fluent/fluent-bit:5.2.0
+    command: ["-c", "/fluent-bit/etc/dispatcher.conf"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./deploy/tracing/config/fluent-bit.conf:/fluent-bit/etc/dispatcher.conf:ro
+      - ./deploy/tracing/config/parsers.conf:/fluent-bit/etc/dispatcher-parsers.conf:ro
+      - agent-logs:/inputs/agent:ro
+      - executor-logs:/inputs/executor:ro
+      - gateway-logs:/inputs/gateway:ro
+      - audit-logs:/inputs/audit:ro
+      - runbook-logs:/inputs/runbook:ro
+      - monitoring-logs:/inputs/monitoring:ro
+      - runbook-catalog-logs:/inputs/catalog:ro
+      - log-collector-state:/state
+    networks: [observability]
+    depends_on:
+      loki:
+        condition: service_started
+
+networks:
+  observability:
+    internal: true
+
+volumes:
+  loki-state:
+  log-collector-state:
+  runbook-logs:

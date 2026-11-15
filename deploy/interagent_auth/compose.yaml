@@ -1,0 +1,88 @@
+x-interagent-issuer: &interagent-issuer https://keycloak:8443/realms/dispatcher-workloads
+
+services:
+  agent:
+    environment:
+      SERVICE_AUTH_MODE: mtls_oauth
+      IAM_ISSUER: *interagent-issuer
+      IAM_MONITORING_CLIENT_SECRET: ""
+      RUNBOOK_AGENT_URL: https://runbook-agent:8004
+    networks: [coordination]
+    depends_on:
+      runbook-agent:
+        condition: service_healthy
+
+  executor:
+    environment:
+      SERVICE_AUTH_MODE: mtls_oauth
+      IAM_ISSUER: *interagent-issuer
+      IAM_CA_FILE: /run/issuer/ca.pem
+    volumes:
+      - ./certs/agent-identity/executor/ca.pem:/run/issuer/ca.pem:ro
+
+  runbook-agent:
+    build:
+      context: .
+      target: backend
+    image: incident-dispatcher-backend:local
+    user: "10001:10001"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    command:
+      - dispatcher.identity.runbook_agent:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8004"
+      - --ssl-certfile
+      - /run/identity/server.pem
+      - --ssl-ca-certs
+      - /run/identity/ca.pem
+      - --ssl-cert-reqs
+      - "2"
+      - --no-access-log
+    environment:
+      EXECUTOR_URL: https://executor:8443
+      IAM_ISSUER: *interagent-issuer
+      WORKLOAD_TLS_DIR: /run/identity
+      IAM_RUNBOOK_CLIENT_SECRET: ${IAM_RUNBOOK_CLIENT_SECRET:?Сначала запустите scripts/start-interagent.ps1}
+    networks: [coordination, execution, identity]
+    volumes:
+      - ./certs/agent-identity/runbook:/run/identity:ro
+      - runbook-logs:/app/logs
+    depends_on:
+      executor-tls:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, /app/.venv/bin/python, -c, "from pathlib import Path; import httpx2; from dispatcher.identity.workload_identity.workload import client_tls; httpx2.get('https://runbook-agent:8004/health', verify=client_tls(Path('/run/identity')), timeout=2, trust_env=False).raise_for_status()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  keycloak:
+    environment:
+      KC_HOSTNAME: https://keycloak:8443
+      KC_HTTP_ENABLED: "false"
+      KC_HTTP_MANAGEMENT_SCHEME: http
+      KC_HTTPS_CERTIFICATE_FILE: /run/identity/server.pem
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /run/identity/server-key.pem
+      KC_HTTPS_CLIENT_AUTH: request
+      KC_HTTPS_TRUST_STORE_FILE: /run/identity/ca.pem
+      IAM_MONITORING_CLIENT_SECRET: ""
+      IAM_RUNBOOK_CLIENT_SECRET: ${IAM_RUNBOOK_CLIENT_SECRET:?Сначала запустите scripts/start-interagent.ps1}
+    volumes: !override
+      - ./deploy/interagent_auth/config/dispatcher-workloads-realm.json:/opt/keycloak/data/import/dispatcher-workloads-realm.json:ro
+      - ./certs/agent-identity/keycloak:/run/identity:ro
+
+networks:
+  coordination:
+    internal: true
+
+volumes:
+  runbook-logs:

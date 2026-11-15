@@ -1,0 +1,52 @@
+x-iam-issuer: &iam-issuer http://keycloak:8080/realms/dispatcher
+
+services:
+  agent:
+    environment:
+      SERVICE_AUTH_MODE: oauth
+      IAM_ISSUER: *iam-issuer
+      IAM_EXECUTOR_CLIENT_SECRET: ${IAM_EXECUTOR_CLIENT_SECRET:?Сначала запустите scripts/start-iam.ps1}
+      IAM_MONITORING_CLIENT_SECRET: ${IAM_MONITORING_CLIENT_SECRET:?Сначала запустите scripts/start-iam.ps1}
+    networks: [identity]
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  executor:
+    environment:
+      SERVICE_TOKEN: ""
+      SERVICE_AUTH_MODE: oauth
+      IAM_ISSUER: *iam-issuer
+    networks: [identity]
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    command: [start-dev, --import-realm]
+    environment:
+      KC_HOSTNAME: http://keycloak:8080
+      KC_HEALTH_ENABLED: "true"
+      IAM_EXECUTOR_CLIENT_SECRET: ${IAM_EXECUTOR_CLIENT_SECRET:?Сначала запустите scripts/start-iam.ps1}
+      IAM_MONITORING_CLIENT_SECRET: ${IAM_MONITORING_CLIENT_SECRET:?Сначала запустите scripts/start-iam.ps1}
+    volumes:
+      - ./deploy/ephemeral_tokens/config/dispatcher-realm.json:/opt/keycloak/data/import/dispatcher-realm.json:ro
+    networks: [identity]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: local
+      options:
+        max-size: 5m
+        max-file: "3"
+    healthcheck:
+      test: [CMD, bash, -ec, "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep -q 'HTTP/1.0 200'; } 0<>/dev/tcp/127.0.0.1/9000"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 60s
+
+networks:
+  identity:
+    internal: true

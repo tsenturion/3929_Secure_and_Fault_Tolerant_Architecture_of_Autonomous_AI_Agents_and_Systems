@@ -1,0 +1,77 @@
+{
+  "realm": "dispatcher",
+  "enabled": true,
+  "sslRequired": "none",
+  "defaultSignatureAlgorithm": "RS256",
+  "accessTokenLifespan": 20,
+  "clientScopes": [
+    {
+      "name": "executor.access",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" },
+      "protocolMappers": [
+        {
+          "name": "incident-executor",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "incident-executor",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "name": "monitoring.read",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" },
+      "protocolMappers": [
+        {
+          "name": "monitoring-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "monitoring-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "diagnostic-agent",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${IAM_EXECUTOR_CLIENT_SECRET}",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["executor.access"],
+      "optionalClientScopes": [],
+      "attributes": { "client_credentials.use_refresh_token": "false" }
+    },
+    {
+      "clientId": "queue-monitor",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${IAM_MONITORING_CLIENT_SECRET}",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["monitoring.read"],
+      "optionalClientScopes": [],
+      "attributes": { "client_credentials.use_refresh_token": "false" }
+    }
+  ]
+}

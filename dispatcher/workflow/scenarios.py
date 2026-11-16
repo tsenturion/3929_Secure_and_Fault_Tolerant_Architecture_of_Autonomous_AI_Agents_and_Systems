@@ -73,6 +73,7 @@ class Monitoring(BaseModel):
 
     @property
     def scope(self) -> Literal["incident", "individual", "uncertain"]:
+        """Оценивает масштаб задержки по возрасту очереди и состоянию оформления заказов."""
         if not self.checkout_healthy:
             return "uncertain"
         if self.oldest_minutes > 15:
@@ -98,7 +99,10 @@ class Monitoring(BaseModel):
 
 @dataclass(frozen=True)
 class Scenario:
-    """Входные данные разбора для учебного или рабочего обращения."""
+    """Входные данные разбора для учебного или рабочего обращения.
+
+    Карточка описывает симптомы со слов поддержки, снимок мониторинга хранит измерения сервиса.
+    """
 
     view: ScenarioView
     monitoring: Monitoring

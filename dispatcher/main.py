@@ -201,6 +201,7 @@ forecast_replay = ForecastReplay()
 @app.exception_handler(RequestValidationError)
 async def invalid_request(request: Request, error: RequestValidationError):
     if request.url.path.rstrip("/") == "/api/runs":
+        # В ответе сообщаем о нарушении схемы без отклонённых исходных значений.
         logger.info("Вход прогона отклонён: нарушение формата запроса")
         return JSONResponse(
             status_code=422,
@@ -343,6 +344,7 @@ def threat_cases() -> list[ThreatCase]:
 
 @app.post("/api/threat-cases/{threat}/runs")
 async def run_threat_case(threat: Threat, executor: Executor) -> Run:
+    """Выполняет защитную проверку на учебных данных с локальным источником решений."""
     scenario = case_scenario(threat, SCENARIOS["REQ-1842"])
     with span("triage", parent=new_trace(scenario.view.id)) as operation:
         result = await run_triage(
@@ -607,6 +609,7 @@ async def process_run(
                 ),
             ),
         )
+        # Контекст модели и открытая история используют очищенное описание.
         scenario = replace(
             scenario, view=scenario.view.model_copy(update={"report": display_text(report)})
         )

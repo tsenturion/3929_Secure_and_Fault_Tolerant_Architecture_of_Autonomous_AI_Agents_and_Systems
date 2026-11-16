@@ -16,6 +16,11 @@ RunId = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
 
 
 class ToolProposal(BaseModel):
+    """Форма запроса на инструмент с привязкой к обращению и прогону.
+
+    Допустимость операции и её аргументов проверяет исполнитель.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     action: str = Field(min_length=1, max_length=64)
@@ -29,6 +34,8 @@ class ToolProposal(BaseModel):
 
 
 class ToolResult(BaseModel):
+    """Результат инструмента с кодом исхода и наблюдением при успешном чтении."""
+
     code: Literal[
         "ok",
         "not_allowed",

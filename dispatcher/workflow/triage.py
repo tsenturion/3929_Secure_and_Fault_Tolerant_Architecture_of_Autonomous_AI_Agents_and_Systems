@@ -198,11 +198,16 @@ class ApprovalTimeoutComparison(BaseModel):
     late: Checkpoint
 
 
-# Порядок задан для фиксированного маршрута. В агентном режиме цикл задаёт бюджет шагов.
+# Элемент последовательности задаёт действие в фиксированном режиме.
+# Для агента длина последовательности ограничивает число итераций, а действия выбираются отдельно.
 FIXED_ROUTE = (Action.STATUS, Action.DEPLOYMENT, Action.INDIVIDUAL, Action.INCIDENT, Action.FINISH)
 
 
 def recommend(scope: Scope | None, seen: set[Action]) -> Recommendation:
+    """Выводит рекомендацию по масштабу задержки и составу подтверждённых источников.
+
+    Один и тот же набор наблюдений даёт одинаковую категорию при любом порядке чтения.
+    """
     if scope is not None:
         match scope:
             case "incident" if {Action.DEPLOYMENT, Action.INCIDENT} <= seen:
@@ -251,7 +256,9 @@ async def run_triage(
     """Разбирает обращение и формирует рекомендацию по полученным сведениям.
 
     Фиксированный маршрут, агент и рабочий режим по регламенту используют общие
-    источники и правила рекомендаций. Стратегия определяет, какой источник читать дальше.
+    источники и правила рекомендаций. В агентном маршруте стенд начинает с мониторинга
+    и завершает разбор, как только собраны основания для рекомендации. Между этими
+    шагами источники выбирает модель или правила рабочего режима.
     """
     trace = current.get()
     run_id = trace.run_id if trace is not None else uuid4().hex
@@ -286,6 +293,7 @@ async def run_triage(
     model_result = None
     scope = None
     recommendation = recommend(scope, seen)
+    # Общий срок относится к диагностике. Ожидание дежурного начинается после разбора.
     deadline = asyncio.get_running_loop().time() + timeout
 
     try:
@@ -322,6 +330,7 @@ async def run_triage(
                 )
             else:
                 selected_by = "model"
+                # Каждый прочитанный источник уже представлен в контексте своим наблюдением.
                 allowed = {
                     action: ACTION_LABELS[action]
                     for action in (*tool_scope.actions, Action.FINISH)
@@ -347,6 +356,7 @@ async def run_triage(
                             raise model_problem
                         assert model is not None
                         async with asyncio.timeout_at(deadline):
+                            # Проверяем структуру решения и очищаем пояснение до следующего вызова.
                             decision = validate_decision(
                                 await asyncio.to_thread(model.decide, context, allowed)
                             )
@@ -382,8 +392,7 @@ async def run_triage(
             if action == Action.FINISH:
                 lifecycle.move(Phase.ACT, "Сформирована рекомендация", recommendation.detail)
             else:
-                # Решение модели здесь только предложение: исполнитель отдельно проверяет
-                # область действия, лимит вызовов и актуальность рабочего обращения.
+                # Из решения берём код действия. Ресурс и привязку к прогону задаёт приложение.
                 try:
                     async with asyncio.timeout_at(deadline):
                         execution = await executor.execute(
@@ -473,6 +482,7 @@ async def run_triage(
             if observation is None:
                 break
             seen.add(action)
+            # Прочитанный результат становится входом следующего решения и событием истории.
             observations.append(
                 {
                     "действие": action,
@@ -503,6 +513,7 @@ async def run_triage(
                 if risk.stale:
                     if risk.conflicting_signals:
                         shield_checks.append(await assess_risk(risk, judge, deadline))
+                    # Устаревший снимок требует ручной проверки при любой оценке судьи.
                     review_required = True
                     raise ModelError(
                         "Снимок очереди устарел. Дежурному нужно проверить свежие данные."
@@ -606,6 +617,7 @@ async def run_triage(
 
 
 async def assess_risk(risk: RiskInput, judge: RiskJudge | None, deadline: float) -> ShieldCheck:
+    """Возвращает проверенную оценку судьи или код недоступности оценки."""
     try:
         if judge is None:
             raise ModelError("Судья не настроен.")

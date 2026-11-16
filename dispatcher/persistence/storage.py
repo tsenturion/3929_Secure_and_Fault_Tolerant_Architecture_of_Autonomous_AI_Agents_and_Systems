@@ -277,6 +277,7 @@ class RunStore:
     def save(
         self, run: Run, caller: Caller | None = None, *, support_export: SupportExport | None = None
     ) -> None:
+        """Сохраняет результат диагностики с историей и состоянием для открытия из кабинета."""
         with self.connection() as db:
             begin_write(db)
             if is_work_case(run.scenario_id):
@@ -670,6 +671,7 @@ class RunStore:
         transaction_token: str | None = None,
         idempotency_key: str | None = None,
     ) -> Run:
+        """Продолжает сохранённый прогон по решению дежурного и фиксирует результат."""
         with self.connection() as db:
             begin_write(db)
             run = self.load(db, run_id)
@@ -737,11 +739,13 @@ class RunStore:
                     or run.recommendation != parameters.recommendation
                 ):
                     self.invalidate_approval(db, run, approval_id, caller)
+                # Перед записью нужна действующая политика: назначение могло измениться.
                 policy = self.check_approval(run, caller, confirmed=True)
                 event("approval_policy", policy.code, check_level="hitl")
                 if policy.code != ApprovalCode.ALLOWED:
                     self.block(db, run, policy, caller, approval_id=approval_id)
                 logger.info("Полномочия подтверждены прогон=%s код=%s", run.id, policy.code)
+            # Для записи используем параметры сохранённого черновика.
             recommendation = run.recommendation
             if decision == "approve":
                 publication = self.publication_for(db, run)
@@ -851,6 +855,7 @@ class RunStore:
     def require_resolution(
         self, db: StoreConnection, run: Run, caller: Caller, action: str
     ) -> None:
+        """Проверяет права на просмотр и согласование сохранённого прогона."""
         caller.require_case(run.scenario_id, "read")
         try:
             caller.require_case(run.scenario_id, "resolve")
@@ -876,6 +881,7 @@ class RunStore:
         *,
         approval_id: str | None = None,
     ) -> Never:
+        """Сохраняет причину блокировки и прерывает операцию до регистрации инцидента."""
         now = self.clock()
         if policy.code == ApprovalCode.APPROVAL_EXPIRED:
             self.expire(db, run, now, caller)
@@ -939,6 +945,7 @@ class RunStore:
             raise ApprovalRejected(run.approval_block)
 
     def record_hitl(self, db: StoreConnection, run: Run, code: str, detail: str) -> None:
+        """Добавляет результат решения дежурного в сохранённую историю Shield Pipeline."""
         run.shield_checks.append(ShieldCheck(level="hitl", code=code, detail=detail))
         self.update(db, run)
         logger.info("Shield прогон=%s уровень=hitl код=%s", run.id, code)

@@ -37,6 +37,7 @@ TRANSITIONS = {
         Phase.REJECTED,
         Phase.MANUAL_COMPLETED,
     },
+    # Решение дежурного поступает в ожидающий прогон как новое наблюдение.
     Phase.AWAITING_APPROVAL: {Phase.OBSERVE, Phase.APPROVAL_EXPIRED},
     Phase.NEEDS_REVIEW: {Phase.MANUAL_HANDOFF},
     Phase.MANUAL_HANDOFF: {Phase.AWAITING_APPROVAL, Phase.MANUAL_COMPLETED, Phase.FAILED},
@@ -44,6 +45,8 @@ TRANSITIONS = {
 
 
 class Lifecycle(BaseModel):
+    """История переходов прогона, последнее событие которой задаёт текущую фазу."""
+
     events: list[Event] = Field(default_factory=list)
 
     @property
@@ -51,6 +54,7 @@ class Lifecycle(BaseModel):
         return self.events[-1].phase
 
     def move(self, phase: Phase, title: str, detail: str, *, at: datetime | None = None) -> None:
+        """Проверяет переход из текущей фазы и добавляет событие с моментом перехода."""
         current = self.phase if self.events else None
         if phase not in TRANSITIONS.get(current, ()):
             raise ValueError(f"Недопустимый переход {current} → {phase}.")

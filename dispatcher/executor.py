@@ -166,6 +166,7 @@ def settings() -> ExecutorSettings:
 
 @lru_cache
 def storage() -> RunStore:
+    """Создаёт хранилище прогонов и трекера в процессе исполнителя."""
     config = settings()
     postgres = (
         PostgresDatabase(
@@ -269,6 +270,7 @@ def identify(
     request_id: Annotated[str, Header(alias=REQUEST_ID_HEADER)] = "",
     certificate: Annotated[str, Header(alias=CERT_HEADER)] = "",
 ) -> Caller:
+    """Определяет сервис и оператора для защищённого запроса исполнителя."""
     config = settings()
     if grant:
         grant.require(EXECUTOR_SCOPE)
@@ -385,6 +387,7 @@ async def approval_rejected(request: Request, error: ApprovalRejected):
 
 @app.post("/tools")
 async def execute(proposal: ToolProposal, caller: VerifiedCaller, request: Request) -> ToolResult:
+    """Передаёт принятое предложение на проверку и возвращает исход чтения."""
     trace = received_run(request.headers, proposal.run_id, proposal.scenario_id)
     tool = proposal.action if proposal.action in {action.value for action in Action} else None
     with span("tool_execute", parent=trace, tool=tool) as operation:
@@ -578,6 +581,7 @@ def tpm_proof(request: Request, caller: VerifiedCaller, proof: TpmProof) -> TpmR
 
 @app.post("/zero-trust-demo")
 async def zero_trust_demo(caller: VerifiedCaller) -> AccessComparison:
+    """Сравнивает доступ к двум ресурсам для одного действия и вызывающей стороны."""
     results = []
     for resource in (NOTIFICATIONS, PAYMENTS):
         proposal = ToolProposal(

@@ -200,6 +200,7 @@ class ExecutorClient:
         )
 
     async def execute(self, proposal: ToolProposal) -> ToolResult:
+        """Отправляет предложение во внутренний API и разбирает типизированный ответ."""
         with span("tool_request") as operation:
             result = await self.request(
                 "POST", "/tools", ToolResult, json=proposal.model_dump(mode="json")

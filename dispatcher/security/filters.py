@@ -11,6 +11,8 @@ MAX_REPORT_LENGTH = 1600
 
 
 class SupportExport(BaseModel):
+    """Схема входной выгрузки с описанием и отдельным полем контакта."""
+
     model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
 
     description: str = Field(min_length=1, max_length=MAX_REPORT_LENGTH)
@@ -32,12 +34,15 @@ class SupportExport(BaseModel):
 
 
 class FilterCheck(BaseModel):
+    """Результат проверки входа или выхода для карточки прогона."""
+
     boundary: Literal["input", "output"]
     code: str
     detail: str
 
 
 def redact_email(text: str) -> tuple[str, int]:
+    """Возвращает очищенный текст и число адресов, заменённых маркером."""
     return EMAIL.subn(EMAIL_PLACEHOLDER, CONTROL.sub("", text))
 
 

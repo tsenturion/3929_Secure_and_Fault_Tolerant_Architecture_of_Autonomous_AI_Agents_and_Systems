@@ -6,12 +6,16 @@ from dispatcher.security.filters import display_text
 
 
 class ShieldCheck(BaseModel):
+    """Результат отдельной проверки, который сохраняется в карточке Shield Pipeline."""
+
     level: Literal["policy", "heuristics", "judge", "hitl"]
     code: str
     detail: str
 
 
 class RiskInput(BaseModel):
+    """Числовые данные для оценки свежести снимка и расхождения с жалобами."""
+
     recent_reports: int
     snapshot_age_minutes: int
     oldest_message_minutes: int
@@ -26,6 +30,8 @@ class RiskInput(BaseModel):
 
 
 class RiskVerdict(BaseModel):
+    """Структурированная оценка расхождения с объяснением судьи."""
+
     model_config = ConfigDict(extra="forbid")
 
     verdict: Literal["likely_incident", "insufficient_evidence", "low_risk"]

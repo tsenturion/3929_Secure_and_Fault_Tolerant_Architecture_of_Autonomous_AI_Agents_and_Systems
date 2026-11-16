@@ -37,12 +37,15 @@ class ApprovalRejected(Exception):
 
 
 class OnCallPolicy(BaseModel):
+    """Расписание дежурных, назначенных на очереди регистрации."""
+
     model_config = ConfigDict(extra="forbid", strict=True)
 
     assignments: dict[str, Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]]
 
 
 def check_assignment(path: Path, queue: str, operator: str) -> ApprovalDecision:
+    """Читает расписание и разрешает запись при подтверждённом назначении оператора."""
     try:
         policy = OnCallPolicy.model_validate_json(path.read_bytes())
     except OSError, ValidationError:

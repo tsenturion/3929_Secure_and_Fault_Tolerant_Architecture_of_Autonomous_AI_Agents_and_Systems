@@ -21,6 +21,8 @@ from dispatcher.workflow.scenarios import Action, Scenario
 
 
 class Decision(BaseModel):
+    """Предложение одного действия с кратким обоснованием для истории разбора."""
+
     model_config = ConfigDict(extra="forbid", strict=True, revalidate_instances="always")
 
     action: str = Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9_]*$")
@@ -69,6 +71,7 @@ def project_context(context: str) -> str:
 
 
 def validate_decision(value: object) -> Decision:
+    """Проверяет решение модели перед использованием, в том числе готовый объект Decision."""
     try:
         return Decision.model_validate(value)
     except ValidationError as error:
@@ -474,6 +477,10 @@ def choice_context(
     information: FlowData,
     checks: list[FlowCheck],
 ) -> str:
+    """Собирает разрешённые поля обращения и наблюдений для выбора следующего шага.
+
+    Отдельное поле контакта покупателя остаётся в сценарии и не входит в контекст.
+    """
     # Типизированные поля проходят IFC. Текст наблюдений очищается отдельно.
     visible = information.forward(Party.TRIAGE, Party.MODEL, checks)
     model_observations = []

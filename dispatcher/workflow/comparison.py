@@ -61,6 +61,7 @@ def checkpoint(
     operator: str,
     policy_code: ApprovalCode | None = None,
 ) -> Checkpoint:
+    """Соединяет то, что известно оператору, с состоянием прогона и трекера в базе."""
     stored = store.get(run_id)
     return Checkpoint(
         title=title,
@@ -84,6 +85,7 @@ def authorize(store: RunStore, run_id: str) -> ApprovalToken:
 def confirm(
     store: RunStore, run_id: str, grant: ApprovalToken | None = None, *, lose_reply: bool = False
 ) -> Run:
+    """Подтверждает черновик и при необходимости имитирует потерю ответа после записи."""
     approval = grant if grant is not None else authorize(store, run_id)
     run = store.resolve(
         run_id,
@@ -148,6 +150,7 @@ def compare_run(store: RunStore, case: ComparisonCase, run: Run) -> ComparedRun:
                     "Дежурный видит таймаут. Номер инцидента пока неизвестен.",
                 )
             )
+            # Повторяем то же подтверждение, чтобы получить результат уже выполненной записи.
             run = confirm(store, run.id, grant)
         checks.append(
             checkpoint(
@@ -168,6 +171,7 @@ def compare_run(store: RunStore, case: ComparisonCase, run: Run) -> ComparedRun:
 
 
 async def compare_outcomes() -> list[ComparedRun]:
+    """Сравнивает исходы одного обращения в отдельных временных хранилищах."""
     rows = []
     with TemporaryDirectory(prefix="dispatcher-comparison-") as directory:
         policy_path = Path(directory) / "on-call.json"
@@ -186,6 +190,7 @@ async def compare_outcomes() -> list[ComparedRun]:
 
 
 def compare_approval(run: Run, directory: Path) -> FailClosedComparison:
+    """Проверяет один черновик до восстановления назначения и после него."""
     policy_path = directory / "on-call.json"
     policy_path.write_text('{"assignments": {}}', encoding="utf-8")
     store = RunStore(directory / "runs.sqlite3", policy_path)
@@ -203,6 +208,7 @@ def compare_approval(run: Run, directory: Path) -> FailClosedComparison:
     else:
         raise RuntimeError("Отсутствие назначения должно блокировать регистрацию.")
 
+    # Меняем только временное расписание, чтобы повторить подтверждение того же прогона.
     restore_demo_assignment(policy_path)
     confirm(store, run.id)
     restored = checkpoint(
@@ -224,6 +230,7 @@ async def demonstrate_fail_closed() -> FailClosedComparison:
 
 
 def compare_publication(run: Run, directory: Path) -> HierarchyComparison:
+    """Сравнивает два черновика с разным составом полей при одном назначении дежурного."""
     policy_path = directory / "on-call.json"
     restore_demo_assignment(policy_path)
     store = RunStore(directory / "runs.sqlite3", policy_path)
@@ -244,6 +251,7 @@ def compare_publication(run: Run, directory: Path) -> HierarchyComparison:
     else:
         raise RuntimeError("Политика данных должна блокировать публикацию контактов.")
 
+    # Версия со сводкой получает свой идентификатор прогона и отдельное подтверждение.
     safe = run.model_copy(update={"id": uuid4().hex})
     store.save(safe)
     resolved = confirm(store, safe.id)
@@ -267,6 +275,7 @@ async def demonstrate_hierarchy() -> HierarchyComparison:
 
 
 def compare_registration(run: Run, directory: Path) -> RegistrationComparison:
+    """Сравнивает решения проверки и отдельно проверяет отказ в регистрации."""
     policy_path = directory / "on-call.json"
     restore_demo_assignment(policy_path)
     store = RunStore(directory / "runs.sqlite3", policy_path)
@@ -278,6 +287,7 @@ def compare_registration(run: Run, directory: Path) -> RegistrationComparison:
     store.save(changed)
     changed = store.get(changed.id)
 
+    # Здесь измеряем решения проверки. Фактическая попытка записи выполняется ниже.
     examples = [
         RegistrationCheckExample(
             label=label,

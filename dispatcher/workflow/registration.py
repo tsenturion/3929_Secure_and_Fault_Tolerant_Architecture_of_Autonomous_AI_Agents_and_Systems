@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 
 
 class RegistrationArguments(BaseModel):
+    """Структура параметров инцидента для проверки сохранённого черновика."""
+
     model_config = ConfigDict(extra="forbid")
 
     priority: Literal["P2"]
@@ -51,7 +53,9 @@ def check_registration(
     operator: str,
     policy_path: Path,
 ) -> ApprovalDecision:
+    """Проверяет состав публикации и условия согласования сохранённого черновика."""
     draft = run.recommendation
+    # Запрет на поле публикации действует независимо от назначения и подтверждения дежурного.
     if any(field not in PUBLIC_FIELDS for field in draft.incident_fields):
         return ApprovalDecision(
             code=ApprovalCode.DATA_POLICY_DENIED,
@@ -79,7 +83,7 @@ def check_registration(
     ):
         return invalid_draft()
     evidence = {
-        # Для допуска важны наблюдения из ожидаемых источников, а не текст решения агента.
+        # Засчитываем шаг только при наличии наблюдения ожидаемого типа.
         step.action
         for step in (run.manual_evidence if manual else run.steps)
         if step.action in REQUIRED_EVIDENCE

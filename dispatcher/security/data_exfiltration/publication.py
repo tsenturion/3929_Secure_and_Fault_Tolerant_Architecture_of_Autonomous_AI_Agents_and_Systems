@@ -16,6 +16,8 @@ PUBLIC_FIELDS = (IncidentField.AFFECTED_REPORTS, IncidentField.TECHNICAL_EVIDENC
 
 
 class Publication(BaseModel):
+    """Значения полей, подготовленные для записи в трекер."""
+
     model_config = ConfigDict(extra="forbid")
 
     affected_reports: int | None = None
@@ -28,6 +30,7 @@ class Publication(BaseModel):
 
 
 def build_publication(scenario: Scenario, fields: list[IncidentField]) -> Publication:
+    """Собирает выбранные публичные поля из данных обращения и мониторинга."""
     return Publication(
         affected_reports=(
             scenario.report_count if IncidentField.AFFECTED_REPORTS in fields else None

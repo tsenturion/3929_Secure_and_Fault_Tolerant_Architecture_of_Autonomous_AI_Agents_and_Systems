@@ -13,6 +13,8 @@ class Threat(StrEnum):
 
 
 class BoundaryDecision(BaseModel):
+    """Объяснение решения защиты, которое показывается в карточке прогона."""
+
     threat: Threat
     title: str
     detail: str
@@ -27,6 +29,7 @@ SOURCE_FOR_ACTION = {
 
 
 def source_denial(action: Action, candidate: Observation) -> BoundaryDecision | None:
+    """Сверяет тип полученного источника с назначением инструмента чтения."""
     if candidate.kind == SOURCE_FOR_ACTION[action]:
         return None
     if candidate.kind == SourceKind.HISTORICAL_NOTE:

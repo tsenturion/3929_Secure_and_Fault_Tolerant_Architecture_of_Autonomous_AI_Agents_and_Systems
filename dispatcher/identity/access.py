@@ -23,11 +23,14 @@ class Operator(StrEnum):
 
 
 class AccessKeys(BaseModel):
+    """Локальные ключи сервиса и двух ролей кабинета."""
+
     service_token: SecretStr = SecretStr("")
     duty_operator_token: SecretStr = SecretStr("")
     observer_token: SecretStr = SecretStr("")
 
     def authenticate(self, service_token: str, authorization: str) -> Caller:
+        """Подтверждает личность сервиса и определяет оператора по отдельному ключу."""
         tokens = (
             self.service_token.get_secret_value(),
             self.duty_operator_token.get_secret_value(),
@@ -40,6 +43,7 @@ class AccessKeys(BaseModel):
         return self.identify_operator(authorization)
 
     def identify_operator(self, authorization: str) -> Caller:
+        """Определяет роль пользователя по ключу из заголовка авторизации."""
         duty = self.duty_operator_token.get_secret_value()
         observer = self.observer_token.get_secret_value()
         if min(len(duty), len(observer)) < 32 or duty == observer:
@@ -63,6 +67,7 @@ class Caller:
             raise denied(403, "operation_forbidden", "Изменение доступно дежурному.")
 
     def require_case(self, scenario_id: str, operation: str) -> None:
+        """Проверяет право оператора на конкретную операцию с обращением."""
         if is_work_case(scenario_id):
             if operation != "read":
                 self.require_duty()

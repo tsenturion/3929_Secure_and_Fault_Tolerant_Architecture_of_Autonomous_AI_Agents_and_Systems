@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 async def authorized_tool(
     caller: Caller, proposal: ToolProposal, store: RunStore, *, tools: LocalTools | None = None
 ) -> ToolResult:
+    """Проверяет допустимость запроса перед вызовом инструмента чтения."""
     caller.require_case(proposal.scenario_id, "read")
     work = is_work_case(proposal.scenario_id)
     if work:
@@ -50,6 +51,7 @@ async def authorized_tool(
                 403, "work_case_policy", "Учебный режим недоступен для рабочего обращения."
             )
     scope = scope_for(proposal.scenario_id)
+    # Подтверждённый отправитель всё равно должен запрашивать ресурс из области обращения.
     if scope is None or proposal.resource != scope.resource:
         await asyncio.to_thread(
             store.audit_tool, caller, proposal, "resource_forbidden", admitted=False
@@ -58,6 +60,7 @@ async def authorized_tool(
         raise denied(403, "resource_forbidden", "Ресурс недоступен для диагностического агента.")
     admitted = False
     if proposal.action not in scope.actions:
+        # Отклонённое действие не резервирует вызов и не передаётся инструменту.
         result = ToolResult(code="not_allowed", message="Инструмент недоступен в этом обращении.")
     elif not allowed_document(proposal):
         await asyncio.to_thread(
@@ -99,6 +102,7 @@ async def authorized_tool(
 
 
 def allowed_document(proposal: ToolProposal) -> bool:
+    """Проверяет связь явно указанного документа с выбранным инструментом."""
     return proposal.document_id is None or proposal.document_id == RUNBOOK_IDS.get(proposal.action)
 
 
@@ -309,6 +313,7 @@ async def execute_tool(
                 monitoring=trace,
                 information=information,
             )
+        # Сохраняем объяснение отказа отдельно от содержимого неподходящего источника.
         checks.append(denial)
     return ToolResult(
         code="source_rejected",

@@ -122,6 +122,7 @@ services:
         read_only: true
         bind:
           create_host_path: false
+    # Через models шлюз принимает запросы агента, через egress обращается к провайдеру.
     networks: [models, egress]
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=2).close()"]

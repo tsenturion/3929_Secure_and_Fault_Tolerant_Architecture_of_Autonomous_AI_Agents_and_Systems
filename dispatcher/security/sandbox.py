@@ -7,6 +7,7 @@ from tempfile import TemporaryFile
 
 
 def verify() -> None:
+    """Проверяет ограничения запущенного контейнера исполнителя."""
     status = dict(
         line.split(":", 1)
         for line in Path("/proc/self/status").read_text().splitlines()
@@ -27,6 +28,7 @@ def verify() -> None:
     mounts = Path("/proc/self/mountinfo").read_text().splitlines()
     root = next(line.split(" - ", 1)[0].split() for line in mounts if line.split()[4] == "/")
     assert "ro" in root[5].split(","), "Корневая файловая система доступна на запись."
+    # Временные файлы проверяют права записи в корне и томе состояния.
     try:
         with TemporaryFile(dir="/app"):
             raise AssertionError("Исполнитель смог записать файл в корневую файловую систему.")
@@ -48,6 +50,7 @@ def verify() -> None:
     with TemporaryFile(dir="/tmp") as temporary:
         temporary.write(b"sandbox-check")
 
+    # Прямое подключение по IP проверяет внешний маршрут отдельно от DNS.
     try:
         with socket.create_connection(("1.1.1.1", 443), timeout=2):
             raise AssertionError("Исполнитель установил внешнее соединение.")

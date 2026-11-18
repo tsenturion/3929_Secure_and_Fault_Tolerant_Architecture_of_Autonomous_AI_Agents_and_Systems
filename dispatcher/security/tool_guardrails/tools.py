@@ -179,6 +179,7 @@ class LocalTools:
         else:
             result = await execute_tool(proposal, catalog=self.catalog, scenario=scenario)
         scope = scope_for(proposal.scenario_id)
+        # Проверяем размер всего JSON-результата до передачи наблюдения в разбор.
         if scope and len(result.model_dump_json().encode("utf-8")) > scope.max_response_bytes:
             result = ToolResult(
                 code="response_too_large",

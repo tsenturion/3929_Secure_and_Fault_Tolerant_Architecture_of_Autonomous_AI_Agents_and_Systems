@@ -374,6 +374,7 @@ class RunStore:
         proposal: ToolProposal,
         scope: ToolScope,
     ) -> ToolResult | None:
+        """Проверяет и резервирует вызов в одной транзакции до чтения источника."""
         binding = (proposal.scenario_id, caller.service, caller.operator)
         with self.connection() as db:
             begin_write(db)
@@ -397,8 +398,8 @@ class RunStore:
             limit = call_limit(scope, [row[3] for row in calls], proposal.action)
             if limit is not None:
                 return ToolResult(code=limit, message=LIMIT_MESSAGES[limit])
-            # Резервирование под блокировкой учитывает параллельные вызовы в лимите;
-            # само чтение источника выполняется исполнителем после выхода из транзакции.
+            # Проверяем лимит и записываем вызов под одной блокировкой.
+            # Исполнитель читает источник после завершения этой транзакции.
             db.execute(
                 "INSERT INTO tool_calls VALUES (?, ?, ?, ?, ?, ?)",
                 (proposal.run_id, *binding, proposal.action, now.isoformat()),

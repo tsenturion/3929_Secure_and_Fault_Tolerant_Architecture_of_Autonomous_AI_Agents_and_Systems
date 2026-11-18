@@ -9,6 +9,8 @@ from dispatcher.workflow.scenarios import Action
 
 
 class ToolScope(BaseModel):
+    """Ресурс, разрешённые инструменты и лимиты диагностического прогона."""
+
     resource: str
     actions: tuple[Action, ...]
     max_calls: int
@@ -41,6 +43,7 @@ LIMIT_MESSAGES: dict[LimitCode, str] = {
 
 
 def call_limit(scope: ToolScope, actions: list[str], action: str) -> LimitCode | None:
+    """Проверяет общий лимит чтений, затем лимит выбранного инструмента."""
     if len(actions) >= scope.max_calls:
         return "call_limit_reached"
     if actions.count(action) >= scope.max_calls_per_action:

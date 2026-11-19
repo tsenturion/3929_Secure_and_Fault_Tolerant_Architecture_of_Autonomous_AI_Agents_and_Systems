@@ -321,6 +321,7 @@ async def demonstrate_registration_checks() -> RegistrationComparison:
 
 
 def compare_deadlines(run: Run, directory: Path) -> ApprovalTimeoutComparison:
+    """Сравнивает подтверждения одного черновика в отдельных базах по управляемым часам."""
     policy_path = directory / "on-call.json"
     restore_demo_assignment(policy_path)
     start = datetime(2026, 11, 15, 9, 12, tzinfo=UTC)

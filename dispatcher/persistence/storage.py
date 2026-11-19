@@ -294,6 +294,7 @@ class RunStore:
                     caller.operator,
                 ):
                     raise RunConflict("Прогон закреплён за другим обращением или пользователем.")
+            # Отсчёт начинается при сохранении черновика по часам исполнителя.
             run.approval_deadline = (
                 self.clock() + self.approval_period
                 if run.status == Phase.AWAITING_APPROVAL
@@ -754,6 +755,7 @@ class RunStore:
                 # все проверки и INSERT выполняются в одной транзакции записи.
                 if publication != parameters.publication:
                     self.invalidate_approval(db, run, approval_id, caller)
+                # Срок согласования мог истечь за время подготовки публикации.
                 write_time = self.clock()
                 self.validate_approval_time(db, run, expires_at, write_time, caller, approval_id)
             else:
@@ -908,6 +910,7 @@ class RunStore:
 
     @staticmethod
     def approval_expired(run: Run, now: datetime) -> bool:
+        """Считает согласование истёкшим с момента наступления срока."""
         return run.status == Phase.AWAITING_APPROVAL and (
             run.approval_deadline is None or now >= run.approval_deadline
         )
@@ -928,6 +931,7 @@ class RunStore:
     def expire(
         self, db: StoreConnection, run: Run, now: datetime, caller: Caller | None = None
     ) -> None:
+        """Закрывает согласование и сохраняет причину отказа в истории прогона."""
         reason = self.expired_decision()
         run.approval_block = ApprovalBlock(code=reason.code, message=reason.message, at=now)
         run.lifecycle.move(

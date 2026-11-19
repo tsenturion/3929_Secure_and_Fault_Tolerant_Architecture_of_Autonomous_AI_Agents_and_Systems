@@ -23,6 +23,10 @@ try {
     }
     docker compose @composeArgs up -d --build --wait --wait-timeout 120
     if ($LASTEXITCODE -ne 0) { throw 'Стенд идентификации не запустился. Проверьте журналы Docker Compose.' }
+    $cabinetAddress = docker compose @composeArgs port frontend 8080
+    if ($LASTEXITCODE -eq 0 -and $cabinetAddress) {
+        Write-Output "Откройте кабинет стенда с сертификатами по адресу http://$cabinetAddress"
+    }
 } finally {
     $env:TPM_SIGNER_URL = $previousSigner
     Pop-Location

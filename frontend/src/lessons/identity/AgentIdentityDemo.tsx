@@ -54,7 +54,10 @@ export function AgentIdentityDemo({ token, enabled, tpm }: {
           )}
         </div>
       ) : (
-        <p>Для проверки запустите <code>scripts/start-agent-identity.ps1</code>.</p>
+        <p>
+          В этой вкладке режим сертификатов выключен. Откройте кабинет Docker по адресу из вывода{' '}
+          <code>scripts/start-agent-identity.ps1</code>.
+        </p>
       )}
       <div aria-live="polite" aria-busy={busy}>
         {error && <p className="notice" role="alert">{error}</p>}

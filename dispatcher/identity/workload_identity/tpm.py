@@ -68,6 +68,7 @@ def emulator() -> Iterator[subprocess.Popen]:
 
 
 def provision() -> None:
+    """Создаёт ключ подписи в программном TPM и сохраняет открытую часть для исполнителя."""
     if PUBLIC_KEY.exists():
         return
     with emulator(), TemporaryDirectory() as workdir:
@@ -96,6 +97,7 @@ def provision() -> None:
 
 
 def sign(nonce: str) -> TpmSignature:
+    """Подписывает запрос ключом программного TPM по сохранённому дескриптору."""
     with TemporaryDirectory() as workdir:
         message = Path(workdir) / "message"
         signature = Path(workdir) / "signature"

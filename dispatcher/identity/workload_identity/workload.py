@@ -50,6 +50,7 @@ def client_tls(directory: Path, *, present_certificate: bool = True) -> ssl.SSLC
 def identify_certificate(
     peer: str, encoded: str, *, interagent: bool = False
 ) -> tuple[WorkloadCertificate, ClientBinding]:
+    """Определяет сервисную роль по URI в проверенном клиентском сертификате."""
     # Цепочку проверяет TLS-прокси. Заголовок с сертификатом принимается только от него.
     if peer != "127.0.0.1" or not encoded:
         raise denied(401, "certificate_required", "Требуется сертификат агента.")
@@ -109,6 +110,7 @@ class TpmVerifier:
         self._pending: dict[str, tuple[Caller, str, float]] = {}
 
     def issue(self, caller: Caller, certificate: WorkloadCertificate) -> Challenge:
+        """Выдаёт одноразовый запрос для текущего вызывающего и его сертификата."""
         if not self.public_key.is_file():
             raise denied(503, "tpm_unavailable", "Открытый ключ TPM не зарегистрирован.")
         nonce = token_hex(32)
@@ -117,12 +119,14 @@ class TpmVerifier:
             self._pending = {key: value for key, value in self._pending.items() if value[2] > now}
             if len(self._pending) >= 128:
                 raise denied(503, "tpm_busy", "Заняты все слоты проверки TPM.")
+            # Монотонные часы отмеряют срок независимо от изменения системной даты.
             self._pending[nonce] = (caller, certificate.serial, now + CHALLENGE_SECONDS)
         return Challenge(nonce=nonce)
 
     def verify(
         self, caller: Caller, certificate: WorkloadCertificate, proof: TpmProof
     ) -> TpmResult:
+        """Погашает подходящий запрос и проверяет подпись зарегистрированным ключом."""
         with self._lock:
             entry = self._pending.get(proof.nonce)
             if (

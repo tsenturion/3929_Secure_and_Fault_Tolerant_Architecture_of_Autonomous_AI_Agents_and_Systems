@@ -94,6 +94,7 @@ def pem(cert: x509.Certificate, key: ec.EllipticCurvePrivateKey) -> bytes:
 
 
 def provision(root: Path, *, rotate: bool = False, interagent: bool = False) -> x509.Certificate:
+    """Готовит сертификаты стенда и по запросу заменяет пару агента диагностики."""
     authority = root / "authority" / "ca.pem"
     if not authority.exists():
         atomic_write(authority, pem(*issue("Dispatcher Training CA", 365)))
@@ -123,6 +124,7 @@ def provision(root: Path, *, rotate: bool = False, interagent: bool = False) -> 
         leaf = root / directory / filename
         expired = not leaf.exists() or read_certificate(leaf).not_valid_after_utc <= renewal
         if expired or (directory == "agent" and rotate):
+            # Записываем сертификат и соответствующий закрытый ключ в один PEM-файл.
             atomic_write(leaf, pem(*issue(name, 7, (ca, ca_key), server=server)))
     if interagent:
         keycloak = root / "keycloak"

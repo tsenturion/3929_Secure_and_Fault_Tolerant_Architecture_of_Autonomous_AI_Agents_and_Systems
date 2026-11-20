@@ -32,6 +32,8 @@ TRACE_FIELDS = frozenset(
 
 
 class JsonLogFormatter(logging.Formatter):
+    """Формирует строку JSON и добавляет идентификаторы текущей трассы."""
+
     def __init__(self, service: str):
         super().__init__()
         self.service = service

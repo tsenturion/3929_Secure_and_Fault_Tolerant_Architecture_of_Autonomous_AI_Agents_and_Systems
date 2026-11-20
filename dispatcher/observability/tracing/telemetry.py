@@ -63,6 +63,7 @@ def new_trace(scenario_id: str) -> TraceContext:
 
 
 def trace_headers() -> dict[str, str]:
+    """Передаёт следующему сервису контекст трассы и текущей операции."""
     context = current.get()
     if context is None or context.span_id is None:
         return {}
@@ -118,6 +119,7 @@ def error_code(error: BaseException) -> str:
 def span(
     operation: str, *, parent: TraceContext | None = None, **attributes: str | None
 ) -> Iterator[SpanResult]:
+    """Записывает длительность и результат операции с указанием её родителя."""
     parent = parent if parent is not None else current.get()
     result = SpanResult()
     if parent is None:
@@ -125,6 +127,7 @@ def span(
         return
     context = replace(parent, span_id=token_hex(8))
     token = current.set(context)
+    # Порядок задаём временем начала, длительность измеряем монотонным счётчиком.
     start_ns = perf_counter_ns()
     started_at = datetime.now(UTC)
     try:

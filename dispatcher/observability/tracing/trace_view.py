@@ -59,6 +59,7 @@ def elapsed_ms(start: datetime, end: datetime) -> float:
 
 
 def summarize(run: Run, items: list[TraceItem], status: TraceStatus, now: datetime) -> TraceView:
+    """Разделяет время автоматического разбора и ожидание решения дежурного."""
     events = run.lifecycle.events
     awaiting = next(
         (i for i, item in enumerate(events) if item.phase == Phase.AWAITING_APPROVAL), None
@@ -109,11 +110,13 @@ class LokiResponse(BaseModel):
 
 
 async def read_trace(run: Run, url: str) -> TraceView:
+    """Собирает трассу сохранённого прогона из структурированных записей Loki."""
     now = datetime.now(UTC)
     if run.trace_id is None:
         return summarize(run, [], "no_trace", now)
     if not url:
         return summarize(run, [], "disabled", now)
+    # Метка приложения выбирает потоки, идентификаторы прогона читаются из JSON.
     query = (
         '{app="dispatcher"} | json'
         f' | trace_id="{run.trace_id}" | run_id="{run.id}"'
